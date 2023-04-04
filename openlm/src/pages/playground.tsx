@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useEffect, useState, Dispatch, SetStateAction } from "react";
+import { api } from "../utils/api";
 
 const testModels: AvailableModelProps[] = [
     {
@@ -47,6 +48,25 @@ const Playground: NextPage = () =>
     const [showSidebar, setShowSidebar] = useState(false);
     const [availableModels, setAvailableModels] = useState<AvailableModelProps[]>(testModels);
     
+    const allModels = api.languageModel.getAll.useQuery();
+    useEffect(() => {
+        const modelsToAdd: AvailableModelProps[] = [];
+        allModels.data?.forEach(m => {
+            modelsToAdd.push(
+                {
+                    model: {
+                        id:m.id,
+                        modelName:m.modelName,
+                    },
+                    warmState:m.state,
+                    author:m.author
+                }
+            )
+        });
+        setAvailableModels(modelsToAdd);
+
+    },[])
+
     const addModel = ({id, modelName}: addModelProps) => {
         setModels(prev => [
             ...prev, {id:id, modelName:modelName}
@@ -218,18 +238,28 @@ interface ModelSearchOpts {
 }
 
 const ModelSearch: React.FC<ModelSearchOpts> = ({show, addModel, removeModel, setShow, availableModels}) => {
+    
+    const [searchInput, setSearchInput] = useState("");
+
     return (
         <div className={`${show ? "": "hidden"} absolute top-0 right-0 h-screen w-screen bg-slate-100/50 backdrop-blur-sm flex justify-center items-center`}>
-            <div className="rounded-md bg-white p-4 flex flex-col w-[600px] h-[400px] relative">
+            <div className="rounded-md bg-white p-4 flex flex-col w-[750px] h-[400px] relative">
                 <div className="w-full border-b focus-within:border-black">
                     <input
                         className="py-4 text-md focus:outline-none w-full h-full"
                         placeholder="Search for a model..."
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
                     />
                 </div>
                 <div className="flex flex-wrap gap-4 mt-4">
                     {
-                        availableModels.map((model, idx) =>
+                        availableModels.filter(model => {
+                            if(searchInput === "") return true;
+                            else if (model.model.modelName.toLocaleLowerCase().includes(searchInput) || model.author.toLocaleLowerCase().includes(searchInput)) {
+                                return true;
+                            }
+                        }).map((model, idx) =>
                             <ModelOption
                                 key={idx}
                                 model={model.model}
