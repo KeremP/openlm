@@ -44,11 +44,6 @@ interface OutputDict {
     [key: string]:string
 }
 
-interface CompletionOpts {
-  id: string,
-  prompt: string
-}
-
 const reqCompletion = async (id: string, prompt: string) => {
   const response = await fetch("/api/completions/completion", {
     method: "POST",
@@ -57,41 +52,111 @@ const reqCompletion = async (id: string, prompt: string) => {
   return response.json();
 }
 
+interface ModelStates {
+  [key: string]:string
+}
+
 const Playground: NextPage = () =>
 {
     const {data: sessionData } = useSession();
     const [formValue, setFormValue] = useState("");
     const {models, addModel, removeModel} = useContext(ModelsStateContext);
     const [modelOutputs, setModelOutputs] = useState<OutputDict>({});
+    const [modelsState, setModelState] = useState<ModelStates>({});
     const [showSidebar, setShowSidebar] = useState(false);
-    const [availableModels, setAvailableModels] = useState<Model[]>([]);
+    
     
     const allModels = api.languageModel.getAll.useQuery();
-    useEffect(() => {
-        const modelsToAdd: Model[] = [];
-        allModels.data?.forEach(
-          model => {
-            let m = {
-              ...model,
-              parameters:DEFAULT_PARAMETERS_STATE
-            }
-            modelsToAdd.push(m);
-          }
-          )
-          setAvailableModels(modelsToAdd);
-    },[]);
+    const modelsToAdd: Model[] = [];
+    allModels.data?.forEach(
+      model => {
+        let m = {
+          ...model,
+          parameters:DEFAULT_PARAMETERS_STATE
+        }
+        modelsToAdd.push(m);
+        }
+    )
 
+    useEffect(() => {
+      console.log(modelsState)
+    },[modelsState])
+
+    useEffect(() => {
+      console.log(modelOutputs)
+    },[modelOutputs])
+
+    const setLoadingState = (id: string) => {
+      setModelState(prev => (
+        {...prev, [id]:"LOADING"}
+      ));
+    }
+
+    const setIdleState = (id: string) => {
+      setModelState(prev => (
+        {...prev, [id]:"IDLE"}
+      ));
+    }
+
+    const setFinishedState = (id: string) => {
+      setModelState(prev => (
+        {...prev, [id]:"FINISHED"}
+      ));
+    }
+
+    const setErrorState = (id: string) => {
+      setModelState(prev => (
+        {...prev, [id]:"ERROR"}
+      ))
+    }
+
+    const setOutputState = (id: string, completion: string) => {
+      setModelOutputs(prev => (
+        {...prev, [id]:completion}
+      ))
+    }
+
+    const getCompletion = async (id: string, prompt: string) => {
+      setLoadingState(id);
+      try{
+        const result = await reqCompletion(id, prompt);
+        setOutputState(id, result);
+        setFinishedState(id);
+      } catch {
+        setOutputState(id, "");
+        setErrorState(id);
+      }
+    }
+
+    const updateStateDict = (id: string, status: string, remove?: boolean) => {
+      if (remove === true) {
+        let temp = modelsState;
+        delete temp[id];
+      }
+      else {
+        switch (status) {
+          case "LOADING":
+            setLoadingState(id);
+            break;
+          case "FINISHED":
+            setFinishedState(id);
+            break;
+          case "ERROR":
+            setErrorState(id);
+            break;
+          default:
+            setIdleState(id);
+            break;
+        }
+      }
+    }
+    
+    
     const getCompletions = async () => {
       // TODO: collect these async calls
         models.forEach(async model => {
-            const prompt = formValue
-            const author = model.author;
-            const modelName = model.modelName;
-            const version = model.version;
-            const result = await reqCompletion(model.id, prompt);
-            console.log(result);
-            // const outputs = modelOutputs;
-            // outputs[author+"/"+modelName+":"+modelId] = result.data;
+            const prompt = formValue;
+            getCompletion(model.id, prompt);
         })
     }
     
@@ -109,7 +174,8 @@ const Playground: NextPage = () =>
                 setShow={setShowSidebar}
                 addModel={addModel}
                 removeModel={removeModel}
-                availableModels={availableModels}
+                availableModels={modelsToAdd}
+                updateStateDict={updateStateDict}
             />
             <div className="flex flex-col justify-between gap-6 px-4 py-4 h-screen">
                 <header className="h-20 w-full flex flex-row justify-between border p-2 items-center -mt-2">
@@ -163,9 +229,10 @@ const Playground: NextPage = () =>
                         <ModelCard
                           key={idx}
                           model={model}
+                          modelState={modelsState[model.id]}
                           showHighlights={false}
                           showProbabilities={false}
-                          completion="Test test"
+                          completion={modelOutputs[model.id]}
                         />
                       )
                     }
@@ -254,10 +321,11 @@ interface ModelSearchOpts {
     setShow: Dispatch<SetStateAction<boolean>>,
     addModel?: ({id, modelName, author, version, warmState, parameters}:Model) => void,
     removeModel?: (id: string) => void,
-    availableModels: Model[]
+    availableModels: Model[],
+    updateStateDict: (id: string, status: string, remove?: boolean) => void
 }
 
-const ModelSearch: React.FC<ModelSearchOpts> = ({show, addModel, removeModel, setShow, availableModels}) => {
+const ModelSearch: React.FC<ModelSearchOpts> = ({show, addModel, removeModel, setShow, availableModels, updateStateDict}) => {
     
     const [searchInput, setSearchInput] = useState("");
 
@@ -285,6 +353,7 @@ const ModelSearch: React.FC<ModelSearchOpts> = ({show, addModel, removeModel, se
                                 model={model}
                                 addModel={addModel}
                                 removeModel={removeModel}
+                                updateStateDict={updateStateDict}
                             />
                         )
                     }
@@ -308,10 +377,11 @@ interface ModelOptionProps {
     model:Model,
     addModel?: ({id, modelName, author, version, warmState, parameters}:Model) => void,
     removeModel?: (id: string) => void,
+    updateStateDict: (id: string, status: string, remove?: boolean) => void
 }
 
 const ModelOption: React.FC<ModelOptionProps> = ({
-    model, addModel, removeModel
+    model, addModel, removeModel, updateStateDict
 }) => {
     const [isChecked, setIsChecked] = useState(false);
 
@@ -319,10 +389,12 @@ const ModelOption: React.FC<ModelOptionProps> = ({
         if(isChecked) {
             console.log(model);
             if(removeModel){
+              updateStateDict(model.id, "", false);
               removeModel(model.id);
             }
         } else {
             if(addModel){
+              updateStateDict(model.id, "IDLE");
               addModel(model);
             }
         }
@@ -468,25 +540,27 @@ const ModelEditor = React.memo((props: any) => {
 
 interface ModelCardProps {
     model:Model,
+    modelState?: string,
     showHighlights: boolean,
     showProbabilities: boolean,
-    completion: string
+    completion?: string
 }
 
 const ModelCard = forwardRef((props: ModelCardProps, ref: any) => {
     const token_index = useRef(0)
-    const {model, showHighlights, showProbabilities, completion} = props
-    const [serverModelState, setServerModelState] = React.useState<string>("IDLE")
+    const {model, modelState, showHighlights, showProbabilities, completion} = props
     const [errorMessage, setErrorMessage] = useState(null);
     const [totalCharacters, setTotalCharacters] = useState(0);
     const [output, setOutput] = React.useState<string>("")
     const [status, setStatus] = React.useState<string[]>([])
   
-    
-  
     const showProbabilitiesRef = useRef(showProbabilities)
     const showHighlightsRef = useRef(showHighlights)
     
+    useEffect(() => {
+      console.log(modelState)
+    }, [modelState])
+
     useEffect(() => {
       setEditorState(
         EditorState.forceSelection(editorState, editorState.getSelection())
@@ -497,12 +571,16 @@ const ModelCard = forwardRef((props: ModelCardProps, ref: any) => {
       showProbabilitiesRef.current = showProbabilities
       showHighlightsRef.current = showHighlights
     })
-  
-    if (completion.length > token_index.current) {
-      let completion_slice = completion.slice(token_index.current, completion.length)
-      token_index.current = completion.length;
-      setOutput(completion_slice)
-    }
+    
+    useEffect(() => {
+        if(completion) {
+          if (completion.length > token_index.current) {
+            let completion_slice = completion.slice(token_index.current, completion.length)
+            token_index.current = completion.length;
+            setOutput(completion_slice)
+          }
+        }
+    }, [completion])
   
     const Decorated = (props: any) => {
       const children = props.children
@@ -681,14 +759,14 @@ const ModelCard = forwardRef((props: ModelCardProps, ref: any) => {
     }))
   
     let border_class = ""
-    switch (serverModelState) {
+    switch (modelState) {
       case "INITIALIZED":
         border_class = "border_inference_pending border_inference_animate"
         break
-      case "RUNNING":
+      case "LOADING":
         border_class = "border_inference_animate"
         break
-      case "COMPLETED":
+      case "FINISHED":
         border_class = "border_inference_complete"
         break
       case "ERROR":
@@ -699,7 +777,7 @@ const ModelCard = forwardRef((props: ModelCardProps, ref: any) => {
     }
   
     return (
-      <div className={`border w-full flex flex-col items-center text-gray-600 text-lg font-bold h-96`}
+      <div className={`w-full flex flex-col items-center text-gray-600 text-lg font-bold h-96`}
         style = { {
           transition: "all 0.3s ease",
           backgroundColor: "#ffffff",
@@ -715,7 +793,7 @@ const ModelCard = forwardRef((props: ModelCardProps, ref: any) => {
                 model={model}
                 errorMessage={errorMessage}
                 totalCharacters={totalCharacters}
-                is_running = {serverModelState !== "ERROR" && serverModelState !== "COMPLETED" && serverModelState !== "IDLE"}
+                is_running = {modelState !== "ERROR" && modelState !== "FINISHED" && modelState !== "INITIALIZED" && modelState !== "IDLE"}
             />
          </div>
         </div>
