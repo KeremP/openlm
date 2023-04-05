@@ -65,9 +65,25 @@ model VerificationToken {
     @@unique([identifier, token])
 }
 
+model ModelParams {
+    id                String @id @default(cuid())
+    temperature       Float
+    maximumLength     Int
+    topP              Float
+    topK              Float
+    frequencyPenalty  Float
+    repetitionPenalty Float
+    presencePenalty   Float
+    stopSequences     String?
+    model             LanguageModel @relation(fields: [modelId], references: [id])
+    modelId           String @unique
+}
+
 model LanguageModel {
-    id        String @id
-    modelName String
-    author    String
-    state     String
+    id         String @id @default(cuid())
+    version    String
+    modelName  String
+    author     String
+    warmState  Boolean
+    parameters ModelParams?
 }
