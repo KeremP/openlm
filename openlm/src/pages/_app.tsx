@@ -35,13 +35,26 @@ export interface Model {
 export interface ModelsStateContextType {
   models: Model[],
   addModel?: ({id, modelName, author, version, parameters=DEFAULT_PARAMETERS_STATE}:Model) => void,
-  removeModel?: (id: string) => void
+  removeModel?: (id: string) => void,
+  updateModelParameters?: (id: string, parameters: typeof DEFAULT_PARAMETERS_STATE) => void,
 }
 
 export const ModelsStateContext = React.createContext<ModelsStateContextType>({models:[]});
 
 const ModelsStateContextWrapper = ({children}: any) => {
   const [models, setModels] = useState<Model[]>([]);
+
+  const getModelIdx = (id: string, currentModels: Model[]) => {
+    let idx: number | null = null;
+    for(let i=0;i<currentModels.length;i++){
+      let m = currentModels[i]; // @ts-ignore
+      if(m.id === id) {
+        idx = i;
+        break;
+      }
+    }
+    return idx;
+  }
 
   const addModel = ({id, modelName, author, version, warmState, parameters=DEFAULT_PARAMETERS_STATE}:Model) => {
     setModels(prev =>
@@ -51,26 +64,29 @@ const ModelsStateContextWrapper = ({children}: any) => {
 
   const removeModel = (id: string) => {
     const currentModels = models;
-    let idx: number | null = null;
-    for(let i=0;i<currentModels.length;i++){
-      let m = currentModels[i]; // @ts-ignore
-      if(m.id === id) {
-        idx = i;
-        break;
-      }
-    }
-
-    if (idx === null) {
-      return;
-    }
+    let idx = getModelIdx(id, currentModels);
+    if (idx === null) return;
 
     currentModels.splice(idx, 1);
+    setModels(currentModels);
+  }
 
+  const updateModelParameters = (id: string, parameters: typeof DEFAULT_PARAMETERS_STATE) => {
+    const currentModels = models;
+    let idx = getModelIdx(id, currentModels);
+    if (idx === null) return;
+
+    let modelToChange = currentModels.splice(idx, 1);
+    if (modelToChange[0] != undefined) {
+      let model = modelToChange[0];
+      model['parameters'] = parameters;
+      currentModels.splice(idx, 0 , model);
+    }
     setModels(currentModels);
   }
 
   return (
-    <ModelsStateContext.Provider value={{models, addModel, removeModel}}>
+    <ModelsStateContext.Provider value={{models, addModel, removeModel, updateModelParameters}}>
       {children}
     </ModelsStateContext.Provider>
   )
