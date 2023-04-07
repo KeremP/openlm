@@ -55,6 +55,11 @@ const reqCompletion = async (messages: MessageType[], modelName: string) => {
     return response.json();
   }
 
+interface OutputType {
+    text: string,
+    modelName: string
+}
+
 const Chat: NextPage = () => {
     const {data: sessionData } = useSession();
     const [selectedModels, setSelectedModels] = useState<Model[]>([DEFAULT_MODEL]);
@@ -63,7 +68,7 @@ const Chat: NextPage = () => {
     const [formValue, setFormValue] = useState("");
     const [sysMessage, setSysMessage] = useState(defaultMessages[0]?.text);
     const [maxTokens, setMaxTokens] = useState(500);
-    const [outputs, setOutputs] = useState();
+    const [outputs, setOutputs] = useState<OutputType[]>([]);
     const [loading, setLoading] = useState(false);
 
 
@@ -71,6 +76,10 @@ const Chat: NextPage = () => {
         if(sysMessage)
         updateMessage(0, sysMessage);
     }, [sysMessage])
+
+    useEffect(() => {
+        console.log(outputs)
+    }, [outputs])
 
     const addMessage = () => {
         setMessages(prev => [...prev, {id:messages.length+1, role:"user", text:""}]);
@@ -134,6 +143,11 @@ const Chat: NextPage = () => {
                     m.modelName !== model.modelName && m.version !== model.version    
                 )
             )
+            setOutputs(
+                outputs.filter(output =>
+                    output.modelName !== model.modelName    
+                )
+            )
             if (model === selectedModel || model === DEFAULT_MODEL) setSelectedModel(null)
         }
     }
@@ -142,9 +156,25 @@ const Chat: NextPage = () => {
 
         selectedModels.forEach(model => {
             reqCompletion(messages, model.modelName)?.then((res) =>{
-                console.log(res)
-            }
-            );
+                const inOutputs = outputs.filter(output =>
+                    output.modelName === model.modelName    
+                );
+                if(inOutputs.length !== 0) {
+                    const newOutputs = outputs.map(output => {
+                        if(output.modelName === model.modelName) {
+                            return {
+                                ...output, text:res
+                            }
+                        } else {
+                            return output
+                        }
+                    })
+                    setOutputs(newOutputs)
+                } else {
+                    setOutputs(prev => [...prev, {modelName:model.modelName, text:res}]);
+                }
+                
+            });
         })
     }
 
@@ -536,18 +566,18 @@ const SliderUI = (props: ParamsProps) => {
 }
 
 interface ModelOutputProps {
-    outputs: {modelName: string, output: string}[]
+    outputs: OutputType[]
 }
 
 const ModelOutput = (props :ModelOutputProps) => {
     const {outputs} = props;
     return (
-        <div className="w-full h-full p-4 grid grid-cols-2 overflow-y-auto">
+        <div className="w-full h-full mt-2 grid grid-cols-2 overflow-y-auto divide-x">
             {outputs.map((output, idx) =>
-                <div className="w-full h-full flex flex-col" key={idx}>
+                <div className="w-full h-full flex flex-col px-2" key={idx}>
                     <h2 className="text-sm font-semibold">{output.modelName}</h2>
-                    <p className="leading-normal pre-whitespace">
-                        {output.output}
+                    <p className="leading-normal whitespace-pre-line break-words">
+                        {output.text}
                     </p>
                 </div>
             )}
