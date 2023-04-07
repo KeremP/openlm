@@ -28,7 +28,7 @@ const Message = (props: MessageProps) => {
     }
     
     return (
-        <div className="w-full h-[150px] border-b flex flex-row justify-between p-4 relative">
+        <div className="w-full min-h-[150px] h-[150px] border-b flex flex-row justify-between p-4 relative">
             <button onClick={onDelete} className="absolute top-2 right-2">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-slate-400">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />

@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useRef } from "react";
+import { useState, useContext, useEffect, useRef, Dispatch, SetStateAction } from "react";
 import { NextPage } from "next";
 import Head from "next/head";
 import Image from "next/image";
@@ -6,25 +6,66 @@ import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 import ChatBar from "src/components/ui/chat/chatbar";
 import Message from "~/components/ui/chat/message";
+import * as Slider from '@radix-ui/react-slider';
 import { MessageContext, MessageType } from "./_app";
+import { Model, ModelOption, DEFAULT_PARAMETERS } from "~/components/model";
+
+
 
 const DEFAULT_PROMPT = "You are a chat assistant.";
 
+const DEFAULT_MODEL: Model ={
+    modelName:"dolly",
+    author:"databricks",
+    provided:"kerpr",
+    version:"1",
+    parameters: DEFAULT_PARAMETERS
+}
+
+const GPT4ALL: Model = {
+    modelName: "gpt4all",
+    author:"nomicai",
+    provided:"kerpr",
+    version: "2",
+    parameters: DEFAULT_PARAMETERS
+}
+
+
+const MODELS: Model[] = [
+    DEFAULT_MODEL,
+    GPT4ALL,
+    
+];
+
+
 const defaultMessages: MessageType[] = [
     {
-      id: 0, role: "system", text:"You are a helpful assistant"
+      id: 0, role: "system", text:DEFAULT_PROMPT
     },
     {
       id: 1, role: "user", text:""
     }
 ];
 
+const reqCompletion = async (messages: MessageType[], modelName: string) => {
+    const response = await fetch("/api/completions/completion", {
+      method: "POST",
+      body: JSON.stringify({messages:messages, modelName:modelName})
+    });
+    return response.json();
+  }
+
 const Chat: NextPage = () => {
     const {data: sessionData } = useSession();
+    const [selectedModels, setSelectedModels] = useState<Model[]>([DEFAULT_MODEL]);
+    const [selectedModel, setSelectedModel] = useState<Model | null>(DEFAULT_MODEL);
     const [messages, setMessages] = useState<MessageType[]>(defaultMessages);
     const [formValue, setFormValue] = useState("");
     const [sysMessage, setSysMessage] = useState(defaultMessages[0]?.text);
     const [maxTokens, setMaxTokens] = useState(500);
+    const [outputs, setOutputs] = useState();
+    const [loading, setLoading] = useState(false);
+
 
     useEffect(() => {
         if(sysMessage)
@@ -36,12 +77,13 @@ const Chat: NextPage = () => {
       }
     
     const removeMessage = (id: number) => {
-        console.log(id)
-        setMessages(
-            messages.filter(m => 
-                m.id !== id && m.role !== "system"
+        if(messages.length !== 1) {
+            setMessages(
+                messages.filter(m => 
+                    m.id !== id && m.role !== "system"
+                )
             )
-        )
+        }
     }
 
     const changeRole = (id: number, role: string) => {
@@ -68,6 +110,42 @@ const Chat: NextPage = () => {
             }
         })
         setMessages(newRoles);
+    }
+
+    const updateParams = (model: Model, params: typeof DEFAULT_PARAMETERS) => {
+        const newParams = selectedModels.map(m => {
+            if(m.modelName === model.modelName && m.version === model.version) {
+                return {
+                    ...m, parameters:params
+                }
+            } else {
+                return m
+            }
+        })
+        setSelectedModels(newParams);
+    }
+
+    const toggleSelectedModel = (selected: boolean, model: Model) => {
+        if(selected) {
+            setSelectedModels(prev => [...prev, model]);
+        } else {
+            setSelectedModels(
+                selectedModels.filter(m => 
+                    m.modelName !== model.modelName && m.version !== model.version    
+                )
+            )
+            if (model === selectedModel || model === DEFAULT_MODEL) setSelectedModel(null)
+        }
+    }
+
+    const submitMessages = () => {
+
+        selectedModels.forEach(model => {
+            reqCompletion(messages, model.modelName)?.then((res) =>{
+                console.log(res)
+            }
+            );
+        })
     }
 
     return (
@@ -104,7 +182,7 @@ const Chat: NextPage = () => {
                 <RequireAuth>
                     
                 </RequireAuth>
-                <div className="w-full h-full flex flex-row gap-2 justify-between">
+                <div className="w-full h-full max-h-[90%] flex flex-row gap-2 justify-between">
                     <div className="h-full w-[300px] border -mt-4 relative flex flex-col p-4">
                         <h2 className="text-sm font-semibold mb-2">PROMPT/SYSTEM</h2>
                         <textarea
@@ -113,50 +191,93 @@ const Chat: NextPage = () => {
                             placeholder={DEFAULT_PROMPT}
                             className="text-md w-full h-full resize-none focus:outline-none overflow-y-auto"
                         />
-                        <div className="h-12 border w-full flex-row justify-between">
-                            
+                    </div>
+                    <div className="flex flex-col w-full h-full justify-between">
+                        <div className="flex flex-col w-full max-h-[600px] overflow-y-auto gap-4">
+                            {
+                                messages.map((msg, idx) =>
+                                    msg.role != "system" &&
+                                    <Message
+                                        key={idx}
+                                        id={msg.id}
+                                        role={msg.role}
+                                        text={msg.text}
+                                        setText={updateMessage}
+                                        setRole={changeRole}
+                                        deleteMessage={removeMessage}
+                                    />
+                                )
+                            }
+                            <button onClick={addMessage} className="hover:bg-slate-100 py-4 px-1 flex flex-row gap-2 items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>
+                                    Add Message
+                                </span>
+                            </button>
+                        </div>
+                        <div className="w-full flex flex-col">
+                            <div className="w-full h-52 border flex flex-col p-2">
+                                <h2 className="text-sm font-bold">Output</h2>
+                                {
+                                    outputs &&
+                                    <ModelOutput
+                                        outputs={outputs}
+                                    />
+                                }
+                            </div>
+                            <button onClick={submitMessages} className="rounded-md px-4 py-2 bg-green-400 text-white w-24 mt-4">
+                                Submit
+                            </button>
                         </div>
                     </div>
-                    <div className="flex flex-col w-full h-full gap-4">
-                        {
-                            messages.map((msg, idx) =>
-                                msg.role != "system" &&
-                                <Message
-                                    key={idx}
-                                    id={msg.id}
-                                    role={msg.role}
-                                    text={msg.text}
-                                    setText={updateMessage}
-                                    setRole={changeRole}
-                                    deleteMessage={removeMessage}
-                                />
-                            )
-                        }
-                        <button onClick={addMessage} className="hover:bg-slate-100 py-4 px-1 flex flex-row gap-2 items-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span>
-                                Add Message
-                            </span>
-                        </button>
-                        
-                        {/* <Message
-                            role={role}
-                            setRole={setRole}
-                            text={msg}
-                            setText={setMsg}
-                        /> */}
+                    <div className="h-full max-h-[95%] overflow-y-auto overflow-x-hidden w-[450px] flex flex-col px-4 py-2 gap-14">
+                        <div className="flex flex-col">
+                            <h2 className="text-md font-semibold mb-2">
+                                Selected Models
+                            </h2>
+                            <div className="flex flex-wrap gap-2">
+                                {
+                                    selectedModels.map((model, idx) =>
+                                        <button onClick={() => setSelectedModel(model)} key={idx} className={`px-4 py-2 flex flex-col ${ selectedModel?.modelName === model.modelName && selectedModel?.version === model.version ? "bg-slate-200": "bg-slate-50"} rounded-md`}>
+                                            <h2 className="text-xs font-semibold">{model.author}/{model.modelName}</h2>
+                                            
+                                        </button>
+                                    )
+                                }
+                            </div>
+                        </div>
+                       { <div className="flex flex-col">
+                            <h2 className="text-md font-semibold mb-2">
+                                Parameters
+                            </h2>
+                            <ModelStats
+                                model={selectedModel}
+                                updateParams={updateParams}
+                            />
+                        </div>}
+
+                        <div className="flex flex-col">
+                            <h2 className="text-md font-semibold mb-2">
+                                Models
+                            </h2>
+                            <ModelOptions
+                                models={MODELS}
+                                onSelect={toggleSelectedModel}
+                            />
+                        </div>
                     </div>
 
                 </div>
-                <div className="w-full">
+                {/* <div className="w-full">
+                    
                     <ChatBar
                         formValue={formValue}
                         setFormValue={setFormValue}
                         onSubmit={() => console.log("submit")}
                     />
-                </div>
+                </div> */}
             </div>
         </main>
         </>
@@ -202,5 +323,234 @@ const RequireAuth: React.FC<AuthProps> = ({children}) => {
             </div>
         }
         </>
+    )
+}
+
+
+interface ModelOptionsProps {
+    models: Model[],
+    onSelect: (selected: boolean, model:Model) => void
+}
+
+const ModelOptions = (props: ModelOptionsProps) => {
+    const {models, onSelect} = props;
+    const [searchInput, setSearchInput] = useState("");
+
+    return (
+        <div className="h-full w-full flex flex-col overflow-y-auto gap-2">
+            <input
+                className="py-2 text-md focus:outline-none w-full mb-4 border rounded-md px-2"
+                placeholder="Search for a model..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+            />
+            {
+            models.filter(model => {
+                if(searchInput === "") return true;
+                else if (model.modelName.toLocaleLowerCase().includes(searchInput) || model.author.toLocaleLowerCase().includes(searchInput)) {
+                    return true;
+                }
+            }).map((model, idx) =>
+                <ModelOption
+                    key={idx}
+                    model={model}
+                    defaultModel={model.modelName === "dolly"}
+                    onSelect={onSelect}
+                />    
+            )}
+        </div>
+    )
+}
+
+interface ModelStatsProps {
+    model?: Model | null,
+    updateParams: (model: Model, param: typeof DEFAULT_PARAMETERS) => void
+}
+
+const ModelStats = (props: ModelStatsProps) => {
+    const {model, updateParams} = props;
+
+    const [temperature, setTemperature] = useState(DEFAULT_PARAMETERS.temperature);
+    const [maxLength, setMaxLength] = useState(DEFAULT_PARAMETERS.maxLength);
+    const [topP, setTopP] = useState(DEFAULT_PARAMETERS.topP);
+    const [freqPenalty, setFreqPenalty] = useState(DEFAULT_PARAMETERS.frequencyPenalty);
+    const [presencePenalty, setPresencePenalty] = useState(DEFAULT_PARAMETERS.presencePenalty);
+
+    const onUpdate = () => {
+        const newParams: typeof DEFAULT_PARAMETERS = {
+            temperature:temperature,
+            maxLength:maxLength,
+            topP:topP,
+            frequencyPenalty:freqPenalty,
+            presencePenalty:presencePenalty
+        }
+        
+        if(model) updateParams(model, newParams);
+    };
+    
+    useEffect(()=> {
+        console.log(model)
+    }, [model])
+    const onReset = () => {
+        setTemperature(DEFAULT_PARAMETERS.temperature);
+        setMaxLength(DEFAULT_PARAMETERS.maxLength);
+        setTopP(DEFAULT_PARAMETERS.topP);
+        setFreqPenalty(DEFAULT_PARAMETERS.frequencyPenalty);
+        setPresencePenalty(DEFAULT_PARAMETERS.presencePenalty);
+        if(model) updateParams(model, DEFAULT_PARAMETERS);
+    }
+
+    return (
+        <div className="flex flex-col w-full px-2">
+            <h2 className="text-md font-bold">
+                {
+                    model? model.modelName : "NA"
+                }
+            </h2>
+            <span className="text-xs font-light text-slate-900 mb-2">
+                {model? model.version : "Select a model above to adjust params"}
+            </span>
+            <div className="flex flex-col w-full">
+                <Params
+                    name="temperature"
+                    value={temperature}
+                    max={1.0}
+                    min={0.0}
+                    step={0.1}
+                    disabled={model ? false: true}
+                    updateValue={setTemperature}
+                />
+                <Params
+                    name="max length"
+                    value={maxLength}
+                    max={1000}
+                    min={0}
+                    step={1}
+                    disabled={model ? false: true}
+                    updateValue={setMaxLength}
+                />
+                <Params
+                    name="top p"
+                    value={topP}
+                    max={1.0}
+                    min={0.01}
+                    step={0.01}
+                    disabled={model ? false: true}
+                    updateValue={setTopP}
+                />
+                <Params
+                    name="frequency penalty"
+                    value={freqPenalty}
+                    max={2.0}
+                    min={0.0}
+                    step={0.01}
+                    disabled={model ? false: true}
+                    updateValue={setFreqPenalty}
+                />
+                <Params
+                    name="presence penalty"
+                    value={presencePenalty}
+                    max={2.0}
+                    min={0.0}
+                    step={0.01}
+                    disabled={model ? false: true}
+                    updateValue={setPresencePenalty}
+                />
+            </div>
+            <div className="flex flex-row justify-between w-full mt-2">
+                <button onClick={onUpdate} className="px-4 py-2 bg-slate-500 text-white text-sm rounded-md">
+                    Update
+                </button>
+                <button onClick={onReset} className="px-4 py-2 bg-slate-100 text-black text-sm rounded-md">
+                    Reset
+                </button>
+
+            </div>
+
+        </div>
+    )
+}
+
+interface ParamsProps {
+    name: string,
+    value: any,
+    max: any,
+    min: any,
+    step: any,
+    disabled: boolean,
+    updateValue: Dispatch<SetStateAction<any>>
+}
+
+const Params = (props: ParamsProps) => {
+    const {name, value, max, min, step,  disabled, updateValue} = props;
+
+    return (
+        <div className="flex flex-col">
+            <div className="flex flex-row justify-between">
+                <span>{name}</span>
+                <input
+                    onChange={(e) => updateValue(e.target.value)}
+                    max={max}
+                    min={min}
+                    step={step}
+                    disabled={disabled}
+                    className="w-[40px] px-2 text-right text-xs border border-white hover:border-slate-100 focus:outline focus:outline-slate-100"
+                    value={value}
+                />
+            </div>
+            <SliderUI
+                name={name}
+                value={value}
+                max={max}
+                min={min}
+                step={step}
+                disabled={disabled}
+                updateValue={updateValue}
+            />
+        </div>
+    )
+}
+
+const SliderUI = (props: ParamsProps) => {
+
+    const {name, value, max, min, step, disabled, updateValue} = props;
+    return (
+        <form>
+            <Slider.Root
+            className={`${disabled?"opacity-30":"opacity-100"} relative flex items-center select-none touch-none w-[200px] h-5`}
+            value={[value]}
+            max={max}
+            min={min}
+            step={step}
+            aria-label={name}
+            disabled={disabled}
+            onValueChange={(val) => updateValue(val[0])}
+            >
+            <Slider.Track className="bg-slate-400 relative grow rounded-full h-[3px]">
+                <Slider.Range className="absolute bg-black rounded-full h-full" />
+            </Slider.Track>
+            <Slider.Thumb className="block cursor-pointer border-2 w-3 h-3 bg-white rounded-[10px] hover:bg-slate-100 focus:outline-none" />
+            </Slider.Root>
+        </form>
+    )
+}
+
+interface ModelOutputProps {
+    outputs: {modelName: string, output: string}[]
+}
+
+const ModelOutput = (props :ModelOutputProps) => {
+    const {outputs} = props;
+    return (
+        <div className="w-full h-full p-4 grid grid-cols-2 overflow-y-auto">
+            {outputs.map((output, idx) =>
+                <div className="w-full h-full flex flex-col" key={idx}>
+                    <h2 className="text-sm font-semibold">{output.modelName}</h2>
+                    <p className="leading-normal pre-whitespace">
+                        {output.output}
+                    </p>
+                </div>
+            )}
+        </div>
     )
 }
