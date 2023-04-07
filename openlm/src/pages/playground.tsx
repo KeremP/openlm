@@ -38,8 +38,8 @@ import {
 import "draft-js/dist/Draft.css"
 
 import { DEFAULT_PARAMETERS_STATE, Model, ModelsStateContext, ModelsStateContextType } from "./_app";
-import { Tooltip, TooltipTrigger, TooltipContent } from "components/ui/tooltip";
-import ParamSlider from "components/ui/slider";
+import { Tooltip, TooltipTrigger, TooltipContent } from "src/components/ui/tooltip";
+import ParamSlider from "src/components/ui/slider";
 
 interface OutputDict {
     [key: string]:string

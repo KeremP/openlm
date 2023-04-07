@@ -28,6 +28,31 @@ async function main() {
         },
         update: {}
     });
+    await prisma.languageModel.upsert({
+      where: {
+          id:"TESTING",
+      },
+      create: {
+          version: version,
+          modelName:"dolly",
+          author: "cjwbw",
+          warmState: true,
+          parameters: {
+            create: {
+              temperature: 1.0,
+              maximumLength: 200,
+              topP: 0.9,
+              topK: 0,
+              repetitionPenalty: 1.0,
+              frequencyPenalty: 0.0,
+              presencePenalty: 0.0,
+              stopSequences: "",
+            }
+          }
+
+      },
+      update: {}
+  });
 }
 
 main()
