@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useContext, useEffect, useRef } from "react";
 import { NextPage } from "next";
 import Head from "next/head";
 import Image from "next/image";
@@ -6,20 +6,69 @@ import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 import ChatBar from "src/components/ui/chat/chatbar";
 import Message from "~/components/ui/chat/message";
+import { MessageContext, MessageType } from "./_app";
 
 const DEFAULT_PROMPT = "You are a chat assistant.";
 
+const defaultMessages: MessageType[] = [
+    {
+      id: 0, role: "system", text:"You are a helpful assistant"
+    },
+    {
+      id: 1, role: "user", text:""
+    }
+];
+
 const Chat: NextPage = () => {
     const {data: sessionData } = useSession();
+    const [messages, setMessages] = useState<MessageType[]>(defaultMessages);
     const [formValue, setFormValue] = useState("");
-    const [sysMessage, setSysMessage] = useState("");
+    const [sysMessage, setSysMessage] = useState(defaultMessages[0]?.text);
     const [maxTokens, setMaxTokens] = useState(500);
 
-    // TODO: refactor these to take in array of message objects
-    const [role, setRole] = useState("user");
-    const [msg, setMsg] = useState("");
+    useEffect(() => {
+        if(sysMessage)
+        updateMessage(0, sysMessage);
+    }, [sysMessage])
 
+    const addMessage = () => {
+        setMessages(prev => [...prev, {id:messages.length+1, role:"user", text:""}]);
+      }
+    
+    const removeMessage = (id: number) => {
+        console.log(id)
+        setMessages(
+            messages.filter(m => 
+                m.id !== id && m.role !== "system"
+            )
+        )
+    }
 
+    const changeRole = (id: number, role: string) => {
+        const newRoles = messages.map(msg => {
+            if(msg.id === id) {
+                return {
+                    ...msg, role:role
+                }
+            } else {
+                return msg
+            }
+        })
+        setMessages(newRoles);
+    }
+
+    const updateMessage = (id: number, text: string) => {
+        const newRoles = messages.map(msg => {
+            if(msg.id === id) {
+                return {
+                    ...msg, text:text
+                }
+            } else {
+                return msg
+            }
+        })
+        setMessages(newRoles);
+    }
 
     return (
         <>
@@ -69,12 +118,35 @@ const Chat: NextPage = () => {
                         </div>
                     </div>
                     <div className="flex flex-col w-full h-full gap-4">
-                        <Message
+                        {
+                            messages.map((msg, idx) =>
+                                msg.role != "system" &&
+                                <Message
+                                    key={idx}
+                                    id={msg.id}
+                                    role={msg.role}
+                                    text={msg.text}
+                                    setText={updateMessage}
+                                    setRole={changeRole}
+                                    deleteMessage={removeMessage}
+                                />
+                            )
+                        }
+                        <button onClick={addMessage} className="hover:bg-slate-100 py-4 px-1 flex flex-row gap-2 items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>
+                                Add Message
+                            </span>
+                        </button>
+                        
+                        {/* <Message
                             role={role}
                             setRole={setRole}
                             text={msg}
                             setText={setMsg}
-                        />
+                        /> */}
                     </div>
 
                 </div>

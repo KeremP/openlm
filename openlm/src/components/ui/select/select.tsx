@@ -8,7 +8,7 @@ interface SelectDropdownProps {
     label: string,
     options: string[],
     value: string,
-    setValue: Dispatch<SetStateAction<string>>
+    setValue: (value: string) => void
 }
 
 const SelectDropdown = (props: SelectDropdownProps) => {
@@ -17,12 +17,15 @@ const SelectDropdown = (props: SelectDropdownProps) => {
 
     const {label, options, value, setValue} = props;
     return (
-        <Select.Root>
+        <Select.Root
+            value={value}
+            onValueChange={(v) => setValue(v)}
+        >
             <Select.Trigger
-            className="inline-flex items-center justify-center rounded px-[15px] text-[13px] leading-none h-[35px] gap-[5px] bg-white text-black shadow-[0_2px_10px] shadow-black/10 hover:bg-slate-100 focus:shadow-[0_0_0_2px] focus:shadow-black data-[placeholder]:text-gray-800 outline-none"
+            className="inline-flex items-center justify-center hover:bg-slate-100 rounded px-[15px] text-[13px] leading-none h-[35px] gap-[5px] bg-white text-black shadow-[0_2px_10px] shadow-black/10 hover:bg-slate-100 focus:shadow-[0_0_0_2px] focus:shadow-black data-[placeholder]:text-gray-800 outline-none"
             aria-label="Food"
             >
-            <Select.Value placeholder="Select a fruit…" />
+            <Select.Value/>
             <Select.Icon className="text-black">
                 <ChevronDownIcon />
             </Select.Icon>
@@ -38,7 +41,7 @@ const SelectDropdown = (props: SelectDropdownProps) => {
                     {label}
                     </Select.Label>
                     {options.map((opt, idx) =>
-                        <SelectItem key={idx} value={opt}>{opt}</SelectItem>
+                        <SelectItem className="cursor-pointer hover:bg-black hover:text-white" key={idx} value={opt}>{opt}</SelectItem>
                     )}
                 </Select.Group>
                 </Select.Viewport>

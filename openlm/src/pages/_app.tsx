@@ -22,6 +22,89 @@ export const DEFAULT_PARAMETERS_STATE = {
   // showProbabilities: false
 };
 
+// TODO: update role type to be list of viable string literals
+export interface MessageType {
+  id: number,
+  role: string,
+  text: string
+}
+
+export interface MessageContextType {
+  messages: MessageType[],
+  addMessage: (message: MessageType) => void,
+  removeMessage: (id: number) => void,
+  changeRole: (id: number, role: string) => void,
+  updateMessage: (id: number, text: string) => void
+}
+
+const defaultMessages: MessageType[] = [
+  {
+    id: 0, role: "system", text:"You are a helpful assistant"
+  },
+  {
+    id: 1, role: "user", text:""
+  }
+]
+
+export const MessageContext = React.createContext<MessageContextType>({
+  messages: defaultMessages,
+  addMessage: (message: MessageType) => {},
+  removeMessage: (id: number) => {},
+  changeRole: (id: number, role: string) => {},
+  updateMessage: (id: number, text: string) => {}
+});
+
+export const MessageContextWrapper = ({children}: any) => {
+  const [messages, setMessages] = useState<MessageType[]>(defaultMessages);
+
+  useEffect(() => {
+    console.log(messages)
+  },[messages])
+
+  const addMessage = (message: MessageType) => {
+    setMessages(prev => [...prev, message]);
+  }
+
+  const removeMessage = (id: number) => {
+    const temp = messages;
+    temp.splice(id, 1);
+    setMessages(temp);
+  }
+
+  const changeRole = (id: number, role: string) => {
+    console.log(id,role)
+    const temp = messages;
+    let msg = temp[id]
+    let text = "";
+    msg? text = msg.text : text = "";
+    let newMsg = {
+      id:id, role:role, text:text
+    }
+    temp.splice(id, 1, newMsg);
+    setMessages(temp);
+  }
+
+  const updateMessage = (id: number, text: string) => {
+    const temp = messages;
+    let msg = temp[id];
+    if (msg) {
+      let newMsg = {
+        id:id, role:msg.role, text:text
+      };
+      
+      temp.splice(id, 1, newMsg)
+      setMessages(temp);
+    }
+
+  }
+
+  return (
+    <MessageContext.Provider value={{messages, addMessage, removeMessage, changeRole, updateMessage}}>
+      {children}
+    </MessageContext.Provider>
+  )
+
+}
 
 export interface Model {
   id: string,
@@ -101,9 +184,11 @@ const MyApp: AppType<{ session: Session | null }> = ({
 }) => {
   return (
     <SessionProvider session={session}>
-      <ModelsStateContextWrapper>
-        <Component {...pageProps} />
-      </ModelsStateContextWrapper>
+      <MessageContextWrapper>
+        <ModelsStateContextWrapper>
+          <Component {...pageProps} />
+        </ModelsStateContextWrapper>
+      </MessageContextWrapper>
     </SessionProvider>
   );
 };
