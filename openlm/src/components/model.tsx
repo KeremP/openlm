@@ -5,7 +5,7 @@ export const DEFAULT_PARAMETERS = {
     maxLength: 200,
     topP:1,
     frequencyPenalty: 0,
-    presencePenalty: 0
+    presencePenalty: 0.01
 };
 export interface Model {
     modelName: string,

@@ -8,6 +8,7 @@ import { TRPCError } from "@trpc/server";
 import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 import { MessageType } from "~/pages/_app";
 import { getCompletionDolly } from "./models/dolly";
+import { DEFAULT_PARAMETERS } from "~/components/model";
 
 const replicate = new Replicate({
     auth: env.REPLICATE_API_TOKEN
@@ -57,17 +58,17 @@ const replicate = new Replicate({
 
 
 
-const modelCompletion = async (messages: MessageType[], modelName: string) => {
+const modelCompletion = async (messages: MessageType[], modelName: string, params: typeof DEFAULT_PARAMETERS) => {
     switch (modelName) {
         case "dolly":
-            return await getCompletionDolly(messages);
+            return await getCompletionDolly(messages, params);
         default:
             break;
     }
 }
 
 interface ModelCompletionReq {
-    messages: MessageType[], modelName: string
+    messages: MessageType[], modelName: string, params: typeof DEFAULT_PARAMETERS
 }
 
 const modelCompletionHandler = async (req: NextApiRequest, res: NextApiResponse) => {
@@ -76,8 +77,8 @@ const modelCompletionHandler = async (req: NextApiRequest, res: NextApiResponse)
     const caller = appRouter.createCaller(ctx);
     try {
         console.log(req.body)
-        const { messages, modelName }: ModelCompletionReq = JSON.parse(req.body);
-        const output = await modelCompletion(messages, modelName);
+        const { messages, modelName, params }: ModelCompletionReq = JSON.parse(req.body);
+        const output = await modelCompletion(messages, modelName, params);
         res.status(200).json(output);
     } catch (cause) {
         if (cause instanceof TRPCError) {

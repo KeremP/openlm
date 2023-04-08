@@ -47,10 +47,10 @@ const defaultMessages: MessageType[] = [
     }
 ];
 
-const reqCompletion = async (messages: MessageType[], modelName: string) => {
+const reqCompletion = async (messages: MessageType[], modelName: string, params: typeof DEFAULT_PARAMETERS) => {
     const response = await fetch("/api/completions/completion", {
       method: "POST",
-      body: JSON.stringify({messages:messages, modelName:modelName})
+      body: JSON.stringify({messages:messages, modelName:modelName, params:params })
     });
     return response.json();
   }
@@ -69,7 +69,7 @@ const Chat: NextPage = () => {
     const [sysMessage, setSysMessage] = useState(defaultMessages[0]?.text);
     const [maxTokens, setMaxTokens] = useState(500);
     const [outputs, setOutputs] = useState<OutputType[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState<string[]>([]);
 
 
     useEffect(() => {
@@ -152,10 +152,22 @@ const Chat: NextPage = () => {
         }
     }
 
+    const addLoading = (modelName: string) => {
+        setLoading(prev => [...prev, modelName]);
+    }
+
+    const removeLoading = (modelName: string) => {
+        setLoading(
+            loading.filter(name => name !== modelName)
+        );
+    }
+
     const submitMessages = () => {
 
         selectedModels.forEach(model => {
-            reqCompletion(messages, model.modelName)?.then((res) =>{
+            addLoading(model.modelName);
+            console.log(model)
+            reqCompletion(messages, model.modelName, model.parameters)?.then((res) =>{
                 const inOutputs = outputs.filter(output =>
                     output.modelName === model.modelName    
                 );
@@ -173,7 +185,7 @@ const Chat: NextPage = () => {
                 } else {
                     setOutputs(prev => [...prev, {modelName:model.modelName, text:res}]);
                 }
-                
+            removeLoading(model.modelName);
             });
         })
     }
@@ -248,12 +260,13 @@ const Chat: NextPage = () => {
                             </button>
                         </div>
                         <div className="w-full flex flex-col">
-                            <div className="w-full h-52 border flex flex-col p-2">
+                            <div className={`w-full h-52 border flex flex-col p-2 loading_border ${loading.length > 0 ? "border_inference_animate":""}`}>
                                 <h2 className="text-sm font-bold">Output</h2>
                                 {
                                     outputs &&
                                     <ModelOutput
                                         outputs={outputs}
+                                        loading={loading}
                                     />
                                 }
                             </div>
@@ -567,14 +580,21 @@ const SliderUI = (props: ParamsProps) => {
 
 interface ModelOutputProps {
     outputs: OutputType[]
+    loading: string[]
 }
 
 const ModelOutput = (props :ModelOutputProps) => {
-    const {outputs} = props;
+    const {outputs, loading} = props;
     return (
         <div className="w-full h-full mt-2 grid grid-cols-2 overflow-y-auto divide-x">
             {outputs.map((output, idx) =>
-                <div className="w-full h-full flex flex-col px-2" key={idx}>
+                <div className="w-full h-full flex flex-col px-2 relative" key={idx}>
+                   {loading.includes(output.modelName) && <div className="z-10 absolute h-full w-full top-0 left-0 flex justify-center items-center bg-slate-50/50 backdrop-blur-sm">
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>}
                     <h2 className="text-sm font-semibold">{output.modelName}</h2>
                     <p className="leading-normal whitespace-pre-line break-words">
                         {output.text}

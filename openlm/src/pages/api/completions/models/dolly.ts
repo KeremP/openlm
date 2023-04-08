@@ -9,6 +9,7 @@ import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 import { MessageType } from "~/pages/_app";
 
 import { toTitleCase } from "~/utils/formatting";
+import { DEFAULT_PARAMETERS } from "~/components/model";
 
 const replicate = new Replicate({
     auth: env.REPLICATE_API_TOKEN
@@ -40,10 +41,29 @@ const compilePrompt = (messages: MessageType[]) => {
     return prompt;
 }
 
-// TODO: model params
-export const getCompletionDolly = async (messages: MessageType[]) => {
+function convertToNumber(value: any, float?:boolean){
+    let out = value;
+    if(typeof value === "string"){
+        float ? out = parseFloat(value): out = parseInt(value)
+    }
+    return out;
+}
+
+export const getCompletionDolly = async (messages: MessageType[], params: typeof DEFAULT_PARAMETERS) => {
     const prompt = compilePrompt(messages);
-    const input = {prompt: prompt};
+    let maxLength = convertToNumber(params.maxLength);
+    let topP = convertToNumber(params.topP, true);
+    let temperature = convertToNumber(params.temperature, true);
+    let repetition_penalty = convertToNumber(params.presencePenalty, true);
+
+    const input = {
+        prompt: prompt,
+        max_length: maxLength,
+        top_p: topP,
+        temperature: temperature,
+        repetition_penalty: repetition_penalty,
+     };
+     console.log(input)
     const output = await replicate.run(model, {input});
     return output;
 }
