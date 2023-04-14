@@ -26,7 +26,8 @@ export const DEFAULT_PARAMETERS_STATE = {
 export interface MessageType {
   id: number,
   role: string,
-  text: string
+  text: string,
+  modelName?: string
 }
 
 export interface MessageContextType {

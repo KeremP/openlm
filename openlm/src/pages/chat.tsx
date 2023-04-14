@@ -69,7 +69,7 @@ const Chat: NextPage = () => {
     const [sysMessage, setSysMessage] = useState(defaultMessages[0]?.text);
     const [maxTokens, setMaxTokens] = useState(500);
     const [outputs, setOutputs] = useState<OutputType[]>([]);
-    const [loading, setLoading] = useState<string[]>([]);
+    const [loading, setLoading] = useState<boolean>(false);
 
 
     useEffect(() => {
@@ -81,8 +81,11 @@ const Chat: NextPage = () => {
         console.log(outputs)
     }, [outputs])
 
-    const addMessage = () => {
-        setMessages(prev => [...prev, {id:messages.length+1, role:"user", text:""}]);
+    const addMessage = (assistant: boolean, text: string, modelName?: string ) => {
+        assistant ? 
+        setMessages(prev => [...prev, {id:messages.length+1, role:"assistant", text:""}])
+        :
+        setMessages(prev => [...prev, {id:messages.length+1, role:"user", text:text}])
       }
     
     const removeMessage = (id: number) => {
@@ -152,42 +155,59 @@ const Chat: NextPage = () => {
         }
     }
 
-    const addLoading = (modelName: string) => {
-        setLoading(prev => [...prev, modelName]);
-    }
+    // const addLoading = (modelName: string) => {
+    //     setLoading(prev => [...prev, modelName]);
+    // }
 
-    const removeLoading = (modelName: string) => {
-        setLoading(
-            loading.filter(name => name !== modelName)
-        );
-    }
+    // const removeLoading = (modelName: string) => {
+    //     setLoading(
+    //         loading.filter(name => name !== modelName)
+    //     );
+    // }
+    const handleResult = (result: PromiseSettledResult<any>) => {
+        if (result.status === "fulfilled") {
+            let res = result.value;
+            if(res.status === 200) {
+                addMessage(true, res.result, res.modelName);
+            } else {
+                addMessage(true, "There was a problem with calling this model: "+res.message, res.modelName);
+            }
+        } else {
+            addMessage(true, "There was a problem with calling a model");
+        }
+        // addMessage(true, result)
+    } 
 
     const submitMessages = () => {
 
+        const promises: Promise<any>[] = [];
+        setLoading(true);
         selectedModels.forEach(model => {
-            addLoading(model.modelName);
             console.log(model)
-            reqCompletion(messages, model.modelName, model.parameters)?.then((res) =>{
-                const inOutputs = outputs.filter(output =>
-                    output.modelName === model.modelName    
-                );
-                if(inOutputs.length !== 0) {
-                    const newOutputs = outputs.map(output => {
-                        if(output.modelName === model.modelName) {
-                            return {
-                                ...output, text:res
-                            }
-                        } else {
-                            return output
-                        }
-                    })
-                    setOutputs(newOutputs)
-                } else {
-                    setOutputs(prev => [...prev, {modelName:model.modelName, text:res}]);
-                }
-            removeLoading(model.modelName);
-            });
-        })
+            let promise = reqCompletion(messages, model.modelName, model.parameters);
+            promises.push(promise);
+            // .then((res) =>{
+            //     const inOutputs = outputs.filter(output =>
+            //         output.modelName === model.modelName    
+            //     );
+            //     if(inOutputs.length !== 0) {
+            //         const newOutputs = outputs.map(output => {
+            //             if(output.modelName === model.modelName) {
+            //                 return {
+            //                     ...output, text:res
+            //                 }
+            //             } else {
+            //                 return output
+            //             }
+            //         })
+            //         setOutputs(newOutputs)
+            //     } else {
+            //         setOutputs(prev => [...prev, {modelName:model.modelName, text:res}]);
+            //     }
+            // });
+        });
+        Promise.allSettled(promises).
+            then((results) => results.forEach((result) => handleResult(result)));
     }
 
     return (
@@ -250,7 +270,7 @@ const Chat: NextPage = () => {
                                     />
                                 )
                             }
-                            <button onClick={addMessage} className="hover:bg-slate-100 py-4 px-1 flex flex-row gap-2 items-center">
+                            <button onClick={() => addMessage(false, "")} className="hover:bg-slate-100 py-4 px-1 flex flex-row gap-2 items-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
@@ -260,16 +280,6 @@ const Chat: NextPage = () => {
                             </button>
                         </div>
                         <div className="w-full flex flex-col">
-                            <div className={`w-full h-52 border flex flex-col p-2 loading_border ${loading.length > 0 ? "border_inference_animate":""}`}>
-                                <h2 className="text-sm font-bold">Output</h2>
-                                {
-                                    outputs &&
-                                    <ModelOutput
-                                        outputs={outputs}
-                                        loading={loading}
-                                    />
-                                }
-                            </div>
                             <button onClick={submitMessages} className="rounded-md px-4 py-2 bg-green-400 text-white w-24 mt-4">
                                 Submit
                             </button>
@@ -575,32 +585,5 @@ const SliderUI = (props: ParamsProps) => {
             <Slider.Thumb className="block cursor-pointer border-2 w-3 h-3 bg-white rounded-[10px] hover:bg-slate-100 focus:outline-none" />
             </Slider.Root>
         </form>
-    )
-}
-
-interface ModelOutputProps {
-    outputs: OutputType[]
-    loading: string[]
-}
-
-const ModelOutput = (props :ModelOutputProps) => {
-    const {outputs, loading} = props;
-    return (
-        <div className="w-full h-full mt-2 grid grid-cols-2 overflow-y-auto divide-x">
-            {outputs.map((output, idx) =>
-                <div className="w-full h-full flex flex-col px-2 relative" key={idx}>
-                   {loading.includes(output.modelName) && <div className="z-10 absolute h-full w-full top-0 left-0 flex justify-center items-center bg-slate-50/50 backdrop-blur-sm">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                    </div>}
-                    <h2 className="text-sm font-semibold">{output.modelName}</h2>
-                    <p className="leading-normal whitespace-pre-line break-words">
-                        {output.text}
-                    </p>
-                </div>
-            )}
-        </div>
     )
 }

@@ -1,18 +1,24 @@
 import { useState, Dispatch, SetStateAction } from "react";
 
+const model_to_border: {[key: string] : string} = {
+    'dolly':'border-orange-500',
+    'gpt4all':'border-blue-500'
+};
+
 import SelectDropdown from "../select/select";
 
 interface MessageProps {
     id: number,
     role: string,
     text: string,
+    modelName?: string, 
     setRole: (id: number, role: string) => void,
     setText: (id: number, text: string) => void,
     deleteMessage: (id: number) => void,
 }
 
 const Message = (props: MessageProps) => {
-    const {id, role, setRole, text, setText, deleteMessage} = props;
+    const {id, role, setRole, modelName, text, setText, deleteMessage} = props;
     const opts = ["user","assistant"];
 
     const setValue = (value: string) => {
@@ -35,13 +41,16 @@ const Message = (props: MessageProps) => {
                 </svg>
             </button>
             
-            <div className="w-24 h-full mr-2">
+            <div className="w-24 h-full mr-2 flex flex-col gap-2">
                 <SelectDropdown
                     label={"Role"}
                     options={opts}
                     value={role}
                     setValue={setValue}
                 />
+                { modelName && <span className={`border ${model_to_border[modelName]} rounded-lg text-xs p-2`}>
+                    {modelName}
+                </span>}
             </div>
             <textarea
                 className="text-md w-full h-full resize-none focus:outline-none overflow-y-auto"

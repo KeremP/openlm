@@ -75,18 +75,18 @@ const modelCompletionHandler = async (req: NextApiRequest, res: NextApiResponse)
     const ctx = await createTRPCContext({req, res});
 
     const caller = appRouter.createCaller(ctx);
+    const { messages, modelName, params }: ModelCompletionReq = JSON.parse(req.body);
     try {
         console.log(req.body)
-        const { messages, modelName, params }: ModelCompletionReq = JSON.parse(req.body);
         const output = await modelCompletion(messages, modelName, params);
-        res.status(200).json(output);
+        res.status(200).json({result:output, model:modelName});
     } catch (cause) {
         if (cause instanceof TRPCError) {
                 const httpCode = getHTTPStatusCodeFromError(cause);
                 return res.status(httpCode).json(cause);
             }
             console.error(cause);
-            res.status(500).json({message: "Internal server error"});
+            res.status(500).json({message: "Internal server error", model:modelName});
     }
 
 
