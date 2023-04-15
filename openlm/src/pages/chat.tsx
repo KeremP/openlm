@@ -20,7 +20,21 @@ import {  Dialog,
 import { Avatar, AvatarImage, AvatarFallback } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
 import { PlusIcon } from "lucide-react";
-
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuGroup,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuPortal,
+    DropdownMenuSeparator,
+    DropdownMenuShortcut,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
+    DropdownMenuTrigger,
+  } from "~/components/ui/dropdownmenu";
+import { Checkbox } from "~/components/ui/checkbox";
 
 const DEFAULT_PROMPT = "You are a chat assistant.";
 
@@ -158,6 +172,15 @@ const Chat: NextPage = () => {
             selectedModels.filter(m => m.modelName !== model.modelName)
         );
     }
+
+    const onSelectModel = (event: Event, model: Model) => {
+        event.preventDefault();
+        if(selectedModels.includes(model)){
+            removeModel(model);
+        } else {
+            addModel(model);
+        }
+    } 
     
     // TODO: pass error message from replicate
     const handleResult = (result: PromiseSettledResult<any>) => {
@@ -256,13 +279,11 @@ const Chat: NextPage = () => {
                             }
                             
                             {/* TODO: add model */}
-                            <Avatar className="ml-4">
-                                <button className="border-black border rounded-full border-dashed w-full h-full flex justify-center items-center">
-                                    <PlusIcon
-                                        width="18px"
-                                    />
-                                </button>
-                            </Avatar>
+                            <ModelDropdown
+                                models={MODELS}
+                                selectedModels={selectedModels}
+                                onSelect={onSelectModel}
+                            />
                             
                         </div>
                         <div className="flex flex-col w-full h-[90%] overflow-y-auto gap-4 p-4">
@@ -579,5 +600,45 @@ const LoadingDots = ({model}: {model: Model}) => {
             />
             <div className="dot-flashing"></div>
         </div>
+    )
+}
+
+interface ModelDropdownProps {
+    models: Model[],
+    selectedModels: Model[],
+    onSelect: (event: Event, model: Model) => void
+}
+
+const ModelDropdown = (props: ModelDropdownProps) => {
+    const {models, selectedModels, onSelect} = props;
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                {/* <Avatar className="ml-4"> */}
+                    <button className="w-10 h-10 border-black border rounded-full border-dashed flex justify-center items-center">
+                        <PlusIcon
+                            width="18px"
+                        />
+                    </button>
+                {/* </Avatar> */}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56">
+                <DropdownMenuLabel>Models</DropdownMenuLabel>
+                <DropdownMenuSeparator/>
+                <DropdownMenuGroup>
+                    {
+                        models.map((model, index) =>
+                        
+                            <DropdownMenuItem key={index} onSelect={(event) => onSelect(event, model) } className="flex flex-row justify-between hover:bg-slate-100 cursor-pointer">
+                                <span>{model.modelName}</span>
+                                <Checkbox
+                                    checked={selectedModels.includes(model)}
+                                />
+                            </DropdownMenuItem>
+                        )
+                    }
+                </DropdownMenuGroup>
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }
