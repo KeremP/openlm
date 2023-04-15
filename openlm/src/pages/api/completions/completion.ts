@@ -9,6 +9,8 @@ import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 import { MessageType } from "~/pages/_app";
 import { getCompletionDolly } from "./models/dolly";
 import { DEFAULT_PARAMETERS } from "~/components/model";
+import { MessageProps } from "~/components/ui/chat/message";
+import { getCompletionLlama } from "./models/llama";
 
 const replicate = new Replicate({
     auth: env.REPLICATE_API_TOKEN
@@ -58,17 +60,24 @@ const replicate = new Replicate({
 
 
 
-const modelCompletion = async (messages: MessageType[], modelName: string, params: typeof DEFAULT_PARAMETERS) => {
-    switch (modelName) {
+const modelCompletion = async (messages: MessageProps[], modelName: string, params: typeof DEFAULT_PARAMETERS) => {
+    const filteredMsgs = messages.filter((msg) => 
+        msg.role === "system" || msg.model?.modelName === modelName || msg.role === "user"
+    )
+    console.log(filteredMsgs)
+    switch (modelName.toLocaleLowerCase()) {
         case "dolly":
-            return await getCompletionDolly(messages, params);
+            return await getCompletionDolly(filteredMsgs, params);
+        case "llama":
+            console.log("llama")
+            return await getCompletionLlama(filteredMsgs, params);
         default:
             break;
     }
 }
 
 interface ModelCompletionReq {
-    messages: MessageType[], modelName: string, params: typeof DEFAULT_PARAMETERS
+    messages: MessageProps[], modelName: string, params: typeof DEFAULT_PARAMETERS
 }
 
 const modelCompletionHandler = async (req: NextApiRequest, res: NextApiResponse) => {

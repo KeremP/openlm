@@ -8,7 +8,6 @@ import { api } from "~/utils/api";
 import "~/styles/globals.css";
 import { LanguageModel } from "@prisma/client";
 
-
 export const DEFAULT_PARAMETERS_STATE = {
   temperature: 1.0,
   maximumLength: 200,

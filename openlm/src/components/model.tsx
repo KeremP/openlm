@@ -12,7 +12,9 @@ export interface Model {
     author: string,
     provided:string,
     version: string,
-    parameters: typeof DEFAULT_PARAMETERS
+    color: string,
+    icon:string,
+    // parameters: typeof DEFAULT_PARAMETERS,
 }
 
 interface ModelOptionProps {

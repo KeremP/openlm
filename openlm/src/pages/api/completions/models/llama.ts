@@ -16,7 +16,7 @@ const replicate = new Replicate({
     auth: env.REPLICATE_API_TOKEN
 });
 
-const model = "cjwbw/dolly:fe699f6290c55cb6bac0f023f5d88a8faba35e2761954e4e0fa030e2fdecafea";
+const model = "replicate/llama-7b:455d66312a66299fba685548fe24f66880f093007b927abd19f4356295f8577c";
 
 const compilePrompt = (messages: MessageType[]) => {
     let prompt = "";
@@ -50,8 +50,9 @@ function convertToNumber(value: any, float?:boolean){
     return out;
 }
 
-export const getCompletionDolly = async (messages: MessageProps[], params: typeof DEFAULT_PARAMETERS) => {
+export const getCompletionLlama = async (messages: MessageProps[], params: typeof DEFAULT_PARAMETERS) => {
     const prompt = compilePrompt(messages);
+    console.log("compiled",prompt)
     let maxLength = convertToNumber(params.maxLength);
     let topP = convertToNumber(params.topP, true);
     let temperature = convertToNumber(params.temperature, true);

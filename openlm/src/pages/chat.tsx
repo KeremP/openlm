@@ -5,29 +5,55 @@ import Image from "next/image";
 import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 import ChatBar from "src/components/ui/chat/chatbar";
-import Message from "~/components/ui/chat/message";
+import Message, { MessageProps } from "~/components/ui/chat/message";
 import * as Slider from '@radix-ui/react-slider';
 import { MessageContext, MessageType } from "./_app";
 import { Model, ModelOption, DEFAULT_PARAMETERS } from "~/components/model";
-
+import {  Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "~/components/ui/dialog";
+import { Avatar, AvatarImage, AvatarFallback } from "~/components/ui/avatar";
+import { Button } from "~/components/ui/button";
+import { PlusIcon } from "lucide-react";
 
 
 const DEFAULT_PROMPT = "You are a chat assistant.";
 
-const DEFAULT_MODEL: Model ={
-    modelName:"dolly",
-    author:"databricks",
-    provided:"kerpr",
-    version:"1",
-    parameters: DEFAULT_PARAMETERS
+// const DEFAULT_MODEL: Model ={
+//     modelName:"dolly",
+//     author:"databricks",
+//     provided:"kerpr",
+//     version:"1",
+//     color:"blue",
+//     icon:"",
+//     parameters: DEFAULT_PARAMETERS
+// }
+
+
+const LLAMA: Model = {
+    modelName: "LLaMa",
+    author: "Meta",
+    provided: "kerpr",
+    version: "455d66312a66299fba685548fe24f66880f093007b927abd19f4356295f8577c",
+    color: "purple",
+    icon: "",
+    // parameters: DEFAULT_PARAMETERS
 }
+const DEFAULT_MODEL = LLAMA;
 
 const GPT4ALL: Model = {
     modelName: "gpt4all",
     author:"nomicai",
     provided:"kerpr",
     version: "2",
-    parameters: DEFAULT_PARAMETERS
+    color:"blue",
+    icon:"",
+    // parameters: DEFAULT_PARAMETERS
 }
 
 
@@ -38,16 +64,12 @@ const MODELS: Model[] = [
 ];
 
 
-const defaultMessages: MessageType[] = [
+const defaultMessage: MessageProps =
     {
-      id: 0, role: "system", text:DEFAULT_PROMPT
-    },
-    {
-      id: 1, role: "user", text:""
+      id: 0, role: "system", text:DEFAULT_PROMPT, model: undefined
     }
-];
 
-const reqCompletion = async (messages: MessageType[], modelName: string, params: typeof DEFAULT_PARAMETERS) => {
+const reqCompletion = async (messages: MessageProps[], modelName: string, params: typeof DEFAULT_PARAMETERS) => {
     const response = await fetch("/api/completions/completion", {
       method: "POST",
       body: JSON.stringify({messages:messages, modelName:modelName, params:params })
@@ -60,156 +82,134 @@ interface OutputType {
     modelName: string
 }
 
+
+
+interface ModelParams {
+    model: Model,
+    params: typeof DEFAULT_PARAMETERS
+}
+
+const DEFAULT_MODEL_PARAMS: ModelParams = {
+    model: DEFAULT_MODEL,
+    params: DEFAULT_PARAMETERS
+}
+
 const Chat: NextPage = () => {
     const {data: sessionData } = useSession();
     const [selectedModels, setSelectedModels] = useState<Model[]>([DEFAULT_MODEL]);
-    const [selectedModel, setSelectedModel] = useState<Model | null>(DEFAULT_MODEL);
-    const [messages, setMessages] = useState<MessageType[]>(defaultMessages);
+    // const [selectedModel, setSelectedModel] = useState<Model | null>(DEFAULT_MODEL);
+    const [messages, setMessages] = useState<MessageProps[]>([]);
     const [formValue, setFormValue] = useState("");
-    const [sysMessage, setSysMessage] = useState(defaultMessages[0]?.text);
+    const [sysMessage, setSysMessage] = useState(defaultMessage);
     const [maxTokens, setMaxTokens] = useState(500);
     const [outputs, setOutputs] = useState<OutputType[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
+    const [loadingStates, setLoadingStates] = useState<Model[]>([]);
+    const [modelParams, setModelParams] = useState<ModelParams[]>([DEFAULT_MODEL_PARAMS]);
 
 
-    useEffect(() => {
-        if(sysMessage)
-        updateMessage(0, sysMessage);
-    }, [sysMessage])
+    // useEffect(() => {
+    //     if(sysMessage)
+    //     updateMessage(0, sysMessage);
+    // }, [sysMessage])
 
     useEffect(() => {
         console.log(outputs)
     }, [outputs])
 
-    const addMessage = (assistant: boolean, text: string, modelName?: string ) => {
-        assistant ? 
-        setMessages(prev => [...prev, {id:messages.length+1, role:"assistant", text:""}])
-        :
-        setMessages(prev => [...prev, {id:messages.length+1, role:"user", text:text}])
+    const updateParams = (modelName: string, paramsToUpdate: typeof DEFAULT_PARAMETERS) => {
+        const newParams = modelParams.map(obj => {
+            if(obj.model.modelName === modelName) {
+                return {
+                    ...obj, params:paramsToUpdate
+                }
+            } else {
+                return obj
+            }
+        });
+        setModelParams(newParams);
+    }
+
+    const addMessage = (assistant: boolean, text: string, model?: Model ) => {
+        let role: string;
+        assistant ? role = "assistant": role = "user";
+        const newMsg: MessageProps = {id:messages.length+1, role:role, text:text, model:model}
+        const newMsgs = [...messages, newMsg]
+        setMessages(prev => [...prev, newMsg]);
+        return newMsgs
       }
     
-    const removeMessage = (id: number) => {
-        if(messages.length !== 1) {
-            setMessages(
-                messages.filter(m => 
-                    m.id !== id && m.role !== "system"
-                )
-            )
-        }
-    }
-
-    const changeRole = (id: number, role: string) => {
-        const newRoles = messages.map(msg => {
-            if(msg.id === id) {
-                return {
-                    ...msg, role:role
-                }
-            } else {
-                return msg
-            }
-        })
-        setMessages(newRoles);
-    }
-
-    const updateMessage = (id: number, text: string) => {
-        const newRoles = messages.map(msg => {
-            if(msg.id === id) {
-                return {
-                    ...msg, text:text
-                }
-            } else {
-                return msg
-            }
-        })
-        setMessages(newRoles);
-    }
-
-    const updateParams = (model: Model, params: typeof DEFAULT_PARAMETERS) => {
-        const newParams = selectedModels.map(m => {
-            if(m.modelName === model.modelName && m.version === model.version) {
-                return {
-                    ...m, parameters:params
-                }
-            } else {
-                return m
-            }
-        })
-        setSelectedModels(newParams);
-    }
-
-    const toggleSelectedModel = (selected: boolean, model: Model) => {
-        if(selected) {
-            setSelectedModels(prev => [...prev, model]);
+    const updateLoading = (model: Model, state: boolean) => {
+        if(state) {
+            setLoadingStates(prev => [...prev, model]);
         } else {
-            setSelectedModels(
-                selectedModels.filter(m => 
-                    m.modelName !== model.modelName && m.version !== model.version    
-                )
-            )
-            setOutputs(
-                outputs.filter(output =>
-                    output.modelName !== model.modelName    
-                )
-            )
-            if (model === selectedModel || model === DEFAULT_MODEL) setSelectedModel(null)
+            setLoadingStates(
+                loadingStates.filter(m => m.modelName !== model.modelName)
+            );
         }
     }
 
-    // const addLoading = (modelName: string) => {
-    //     setLoading(prev => [...prev, modelName]);
-    // }
+    const addModel = (model: Model) => {
+        setSelectedModels(prev => [...prev, model]);
+    }
 
-    // const removeLoading = (modelName: string) => {
-    //     setLoading(
-    //         loading.filter(name => name !== modelName)
-    //     );
-    // }
+    const removeModel = (model: Model) => {
+        setSelectedModels(
+            selectedModels.filter(m => m.modelName !== model.modelName)
+        );
+    }
+    
+    // TODO: pass error message from replicate
     const handleResult = (result: PromiseSettledResult<any>) => {
+        let newMsgState;
         if (result.status === "fulfilled") {
             let res = result.value;
-            if(res.status === 200) {
-                addMessage(true, res.result, res.modelName);
-            } else {
-                addMessage(true, "There was a problem with calling this model: "+res.message, res.modelName);
+            console.log(res)
+            const model = selectedModels.filter(m => m.modelName === res.model)[0];
+            if (model) {
+                if (res.message) {
+                    newMsgState = addMessage(true, res.message, model);
+                } else {
+                    newMsgState = addMessage(true, res.result, model);
+                }
+                updateLoading(model, false);
+                console.log(newMsgState)
             }
         } else {
-            addMessage(true, "There was a problem with calling a model");
+            newMsgState = addMessage(true, "There was a problem with calling a model");
         }
         // addMessage(true, result)
     } 
 
-    const submitMessages = () => {
-
+    const submitMessages = async (msgs: MessageProps[]) => {
+        const prompt: MessageProps[] = [sysMessage, ...msgs];
+        console.log("prompt",prompt)
         const promises: Promise<any>[] = [];
         setLoading(true);
         selectedModels.forEach(model => {
             console.log(model)
-            let promise = reqCompletion(messages, model.modelName, model.parameters);
-            promises.push(promise);
-            // .then((res) =>{
-            //     const inOutputs = outputs.filter(output =>
-            //         output.modelName === model.modelName    
-            //     );
-            //     if(inOutputs.length !== 0) {
-            //         const newOutputs = outputs.map(output => {
-            //             if(output.modelName === model.modelName) {
-            //                 return {
-            //                     ...output, text:res
-            //                 }
-            //             } else {
-            //                 return output
-            //             }
-            //         })
-            //         setOutputs(newOutputs)
-            //     } else {
-            //         setOutputs(prev => [...prev, {modelName:model.modelName, text:res}]);
-            //     }
-            // });
+            updateLoading(model, true);
+            console.log(model)
+            let params = modelParams.filter(param => param.model.modelName === model.modelName)[0];
+            if(params){
+                let promise = reqCompletion(prompt, model.modelName, params.params);
+                promises.push(promise);
+            }
         });
         Promise.allSettled(promises).
-            then((results) => results.forEach((result) => handleResult(result)));
+            then((results) => results.forEach((result) => handleResult(result))).then(() => setLoading(false));
     }
 
+    const submitUserMessage = async () => {
+        if (loading){
+            return;
+        }
+        const msg = formValue;
+        setFormValue("");
+        const newMsgs = addMessage(false, msg);
+        console.log(newMsgs);
+        await submitMessages(newMsgs);
+    }
     return (
         <>
         <Head>
@@ -218,8 +218,8 @@ const Chat: NextPage = () => {
             <link rel="icon" href="/favicon.ico" />
         </Head>
         <main className="min-w-screen min-h-screen bg-white">
-            <div className="flex flex-col justify-between gap-6 px-4 py-4 h-screen">
-                <header className="h-20 w-full flex flex-row justify-between border p-2 items-center -mt-2">
+            <div className="flex flex-col h-screen py-2">
+                <header className="h-12 w-full flex flex-row justify-between border-b py-4 px-6 items-center -mt-2">
                     <div>
                         <Link href={"#"}>
                             <Image
@@ -244,18 +244,28 @@ const Chat: NextPage = () => {
                 <RequireAuth>
                     
                 </RequireAuth>
-                <div className="w-full h-full max-h-[90%] flex flex-row gap-2 justify-between">
-                    <div className="h-full w-[300px] border -mt-4 relative flex flex-col p-4">
-                        <h2 className="text-sm font-semibold mb-2">PROMPT/SYSTEM</h2>
-                        <textarea
-                            value={sysMessage}
-                            onChange={(e) => setSysMessage(e.target.value)}
-                            placeholder={DEFAULT_PROMPT}
-                            className="text-md w-full h-full resize-none focus:outline-none overflow-y-auto"
-                        />
-                    </div>
-                    <div className="flex flex-col w-full h-full justify-between">
-                        <div className="flex flex-col w-full max-h-[600px] overflow-y-auto gap-4">
+                    <div className="flex flex-col w-full h-full max-h-[99%] justify-between relative overflow-hidden">
+                        <div className="w-full h-16 flex flex-row border-b bg-slate-50 py-4 px-6 gap-2">
+                            {
+                                selectedModels.map((model, index) => 
+                                    <ModelAvatar
+                                        key={index}
+                                        model={model}
+                                    />
+                                )
+                            }
+                            
+                            {/* TODO: add model */}
+                            <Avatar className="ml-4">
+                                <button className="border-black border rounded-full border-dashed w-full h-full flex justify-center items-center">
+                                    <PlusIcon
+                                        width="18px"
+                                    />
+                                </button>
+                            </Avatar>
+                            
+                        </div>
+                        <div className="flex flex-col w-full h-[90%] overflow-y-auto gap-4 p-4">
                             {
                                 messages.map((msg, idx) =>
                                     msg.role != "system" &&
@@ -264,73 +274,31 @@ const Chat: NextPage = () => {
                                         id={msg.id}
                                         role={msg.role}
                                         text={msg.text}
-                                        setText={updateMessage}
-                                        setRole={changeRole}
-                                        deleteMessage={removeMessage}
+                                        model={msg.model}
                                     />
                                 )
                             }
-                            <button onClick={() => addMessage(false, "")} className="hover:bg-slate-100 py-4 px-1 flex flex-row gap-2 items-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span>
-                                    Add Message
-                                </span>
-                            </button>
-                        </div>
-                        <div className="w-full flex flex-col">
-                            <button onClick={submitMessages} className="rounded-md px-4 py-2 bg-green-400 text-white w-24 mt-4">
-                                Submit
-                            </button>
-                        </div>
-                    </div>
-                    <div className="h-full max-h-[95%] overflow-y-auto overflow-x-hidden w-[450px] flex flex-col px-4 py-2 gap-14">
-                        <div className="flex flex-col">
-                            <h2 className="text-md font-semibold mb-2">
-                                Selected Models
-                            </h2>
-                            <div className="flex flex-wrap gap-2">
+                            { loading && <div className="flex flex-col gap-2">
                                 {
-                                    selectedModels.map((model, idx) =>
-                                        <button onClick={() => setSelectedModel(model)} key={idx} className={`px-4 py-2 flex flex-col ${ selectedModel?.modelName === model.modelName && selectedModel?.version === model.version ? "bg-slate-200": "bg-slate-50"} rounded-md`}>
-                                            <h2 className="text-xs font-semibold">{model.author}/{model.modelName}</h2>
-                                            
-                                        </button>
+                                    loadingStates.map((model, index) => 
+                                        <LoadingDots
+                                            key={index}
+                                            model={model}
+                                        />
                                     )
                                 }
-                            </div>
+                            </div>}
                         </div>
-                       { <div className="flex flex-col">
-                            <h2 className="text-md font-semibold mb-2">
-                                Parameters
-                            </h2>
-                            <ModelStats
-                                model={selectedModel}
-                                updateParams={updateParams}
-                            />
-                        </div>}
-
-                        <div className="flex flex-col">
-                            <h2 className="text-md font-semibold mb-2">
-                                Models
-                            </h2>
-                            <ModelOptions
-                                models={MODELS}
-                                onSelect={toggleSelectedModel}
+                        <div className="w-full h-24"></div>
+                        <div className="absolute bottom-0 left-0 w-full px-6 bg-transparent">
+                            <ChatBar
+                                formValue={formValue}
+                                setFormValue={setFormValue}
+                                onSubmit={submitUserMessage}
+                                loading={loading}
                             />
                         </div>
                     </div>
-
-                </div>
-                {/* <div className="w-full">
-                    
-                    <ChatBar
-                        formValue={formValue}
-                        setFormValue={setFormValue}
-                        onSubmit={() => console.log("submit")}
-                    />
-                </div> */}
             </div>
         </main>
         </>
@@ -585,5 +553,31 @@ const SliderUI = (props: ParamsProps) => {
             <Slider.Thumb className="block cursor-pointer border-2 w-3 h-3 bg-white rounded-[10px] hover:bg-slate-100 focus:outline-none" />
             </Slider.Root>
         </form>
+    )
+}
+
+export interface ModelAvatarProps {
+    model: Model
+}
+
+const ModelAvatar = (props: ModelAvatarProps) => {
+    return (
+        <Avatar>
+            <AvatarImage src="https://github.com/shadcn.png" />
+            <AvatarFallback>CN</AvatarFallback>
+        </Avatar>
+    )
+}
+
+export {ModelAvatar}
+
+const LoadingDots = ({model}: {model: Model}) => {
+    return (
+        <div className="flex flex-row items-center gap-6">
+            <ModelAvatar
+                model={model}
+            />
+            <div className="dot-flashing"></div>
+        </div>
     )
 }
